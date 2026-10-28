@@ -25,6 +25,7 @@
   const titleText = $(".title-text");
   const taskLabel = $(".task-label");
   const taskButton = $("#task-button");
+  const wordWindow = $(".word-window");
   const titlebar = $("#word-titlebar");
   const menuRoot = $(".menubar");
   const docmap = $("#docmap");
@@ -83,6 +84,9 @@
   let dragState = null;
   let shortcutDrag = null;
   let suppressShortcutClick = false;
+  let windowDrag = null;
+  let windowOffset = { x: 0, y: 0 };
+  let suppressTitlebarDblClick = false;
   let clockTimer = 0;
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -445,6 +449,113 @@
 
     on(window, "resize", clampShortcutToDesktop);
   }
+
+  const WINDOW_EDGE = 4;
+  const WINDOW_DRAG_THRESHOLD = 4;
+  const WINDOW_MIN_VISIBLE = 64;
+
+  function resetWindowOffset() {
+    windowOffset = { x: 0, y: 0 };
+    wordWindow.style.left = "";
+    wordWindow.style.top = "";
+  }
+
+  function moveWindowTo(clientX, clientY) {
+    if (!windowDrag) return;
+    const host = root.getBoundingClientRect();
+    const width = wordWindow.offsetWidth;
+    const minLeft = host.left + WINDOW_EDGE;
+    const maxLeft = Math.max(minLeft, host.right - width - WINDOW_EDGE);
+    const minTop = host.top + WINDOW_EDGE;
+    const maxTop = Math.max(minTop, host.bottom - WINDOW_MIN_VISIBLE);
+    const left = Math.min(
+      Math.max(clientX - windowDrag.grabX * width, minLeft),
+      maxLeft
+    );
+    const top = Math.min(Math.max(clientY - windowDrag.grabY, minTop), maxTop);
+    windowOffset = {
+      x: left - windowDrag.baseLeft,
+      y: top - windowDrag.baseTop,
+    };
+    wordWindow.style.left = `${windowOffset.x}px`;
+    wordWindow.style.top = `${windowOffset.y}px`;
+  }
+
+  function finishWindowDrag(event) {
+    if (!windowDrag || event.pointerId !== windowDrag.pointerId) return;
+    const moved = windowDrag.moved;
+    windowDrag = null;
+    if (titlebar.hasPointerCapture(event.pointerId)) {
+      titlebar.releasePointerCapture(event.pointerId);
+    }
+    if (moved) {
+      suppressTitlebarDblClick = true;
+      window.setTimeout(() => {
+        suppressTitlebarDblClick = false;
+      }, 250);
+    }
+  }
+
+  function clampWindowToDesktop() {
+    if (!root.classList.contains("is-restored")) return;
+    if (root.classList.contains("is-minimized") || root.classList.contains("is-closed")) return;
+    const host = root.getBoundingClientRect();
+    const rect = wordWindow.getBoundingClientRect();
+    if (!rect.width) return;
+    const minLeft = host.left + WINDOW_EDGE;
+    const maxLeft = Math.max(minLeft, host.right - rect.width - WINDOW_EDGE);
+    const minTop = host.top + WINDOW_EDGE;
+    const maxTop = Math.max(minTop, host.bottom - WINDOW_MIN_VISIBLE);
+    const left = Math.min(Math.max(rect.left, minLeft), maxLeft);
+    const top = Math.min(Math.max(rect.top, minTop), maxTop);
+    if (left === rect.left && top === rect.top) return;
+    windowOffset = {
+      x: windowOffset.x + left - rect.left,
+      y: windowOffset.y + top - rect.top,
+    };
+    wordWindow.style.left = `${windowOffset.x}px`;
+    wordWindow.style.top = `${windowOffset.y}px`;
+  }
+
+  on(titlebar, "pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest("button")) return;
+    if (root.classList.contains("is-minimized") || root.classList.contains("is-closed")) return;
+    const rect = wordWindow.getBoundingClientRect();
+    windowDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      grabX: (event.clientX - rect.left) / Math.max(rect.width, 1),
+      grabY: Math.max(0, event.clientY - rect.top),
+      baseLeft: rect.left - windowOffset.x,
+      baseTop: rect.top - windowOffset.y,
+      restored: root.classList.contains("is-restored"),
+      moved: false,
+    };
+    titlebar.setPointerCapture(event.pointerId);
+  });
+
+  on(titlebar, "pointermove", (event) => {
+    if (!windowDrag || event.pointerId !== windowDrag.pointerId) return;
+    if (!windowDrag.moved) {
+      const dx = event.clientX - windowDrag.startX;
+      const dy = event.clientY - windowDrag.startY;
+      if (Math.hypot(dx, dy) < WINDOW_DRAG_THRESHOLD) return;
+      windowDrag.moved = true;
+      if (!windowDrag.restored) {
+        toggleRestore();
+        const rect = wordWindow.getBoundingClientRect();
+        windowDrag.baseLeft = rect.left;
+        windowDrag.baseTop = rect.top;
+        windowDrag.grabY = Math.min(windowDrag.grabY, rect.height);
+      }
+    }
+    moveWindowTo(event.clientX, event.clientY);
+  });
+
+  on(titlebar, "pointerup", finishWindowDrag);
+  on(titlebar, "pointercancel", finishWindowDrag);
+  on(window, "resize", clampWindowToDesktop);
 
   on(dialogBox, "keydown", (event) => {
     if (event.key !== "Tab") return;
@@ -809,6 +920,7 @@
       return;
     }
     const restored = root.classList.toggle("is-restored");
+    if (!restored) resetWindowOffset();
     maxButton.setAttribute("title", restored ? "Maximize" : "Restore Down");
     maxButton.setAttribute("aria-label", restored ? "Maximize" : "Restore Down");
   }
@@ -2473,6 +2585,10 @@
   });
 
   on(titlebar, "dblclick", (event) => {
+    if (suppressTitlebarDblClick) {
+      suppressTitlebarDblClick = false;
+      return;
+    }
     if (!event.target.closest("button")) toggleRestore();
   });
 
