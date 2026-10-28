@@ -1,5 +1,7 @@
 # Gabriel Elorde Portfolio
 
+[![Cross-platform smoke test](https://github.com/maidenator/Streamlit-Portfolio/actions/workflows/smoke.yml/badge.svg)](https://github.com/maidenator/Streamlit-Portfolio/actions/workflows/smoke.yml)
+
 A two-page portfolio for **Gabriel Elorde** ([@maidenator](https://github.com/maidenator)),
 built with Streamlit and custom HTML/CSS as a Microsoft Word 2003 document
 running on a Windows XP desktop.
