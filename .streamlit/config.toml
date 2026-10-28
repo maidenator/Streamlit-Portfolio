@@ -7,7 +7,7 @@ textColor = "#000000"
 font = "sans serif"
 
 [server]
-headless = false
+headless = true
 runOnSave = true
 enableStaticServing = true
 
