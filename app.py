@@ -563,7 +563,7 @@ def build_page() -> str:
                 <p>
                   Lately I've been working on the <strong>Artifact Speculation Engine</strong>,
                   a Monte Carlo simulator with a C++/WebAssembly core. I've also
-                  been solving algorithm problems, working on browser extensions,
+                  been solving <a href="https://docs.google.com/spreadsheets/d/1FUOaPHJptXso9jCAQVGmavXMbBDanI2QlqPwQI1Um00/edit?gid=1160016643#gid=1160016643">algorithm problems</a>, working on browser extensions,
                   and building neural networks from scratch.
                 </p>
               </section>
